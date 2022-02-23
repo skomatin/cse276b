@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+import time
 
 import sensor_msgs.point_cloud2 as pc2
 
@@ -8,8 +9,12 @@ from cmvision.msg import Blob, Blobs
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import Twist
 
-BUFFER_ROTATE = 5
-
+BUFFER_ROTATE = 100
+IDLE = 0
+SEARCH = 1
+MOVE = 2
+WAIT = 3
+END = 4
 
 class Lab4Example:
     goal_x, goal_y = None, None
@@ -32,7 +37,7 @@ class Lab4Example:
                 Twist, queue_size=1)
 
         # Current FSM state
-        self.state = 0
+        self.state = SEARCH
 
     """ The callback function for the /blobs topic.
         This is called whenever we receive a message from /blobs.
@@ -41,17 +46,31 @@ class Lab4Example:
 
         # goal_x, goal_y = 0, 0
 
-        # print(len(blobsIn.blobs), " blobs detected")
+        print(len(blobsIn.blobs), " blobs detected")
+        maxBlob = None
+        maxBlobArea = 500
+
         for blob in blobsIn.blobs:
             # print("Color: ", blob.name)
             # print("Blob\n", blob)
             # Note that we define 'RED' to be (255, 0, 0) in the 
             # colors.txt calibration file
-            if blob.name == 'Teal':
-                # blob.x and blob.y are the center of the blob
-                self.goal_detected = True
-                self.goal_x = blob.x
-                self.goal_y = blob.y
+            # print(blob.name, blob.area)
+            if blob.name == 'Pink' and blob.area >= maxBlobArea:
+                maxBlobArea = blob.area
+                maxBlob = blob
+
+        if maxBlob:
+            # blob.x and blob.y are the center of the blob
+            self.goal_detected = True
+            self.goal_x = maxBlob.x
+            self.goal_y = maxBlob.y
+            time.sleep(0.5)
+            print(maxBlob.name, maxBlob.area)
+        else:
+            self.goal_detected = False
+            print('no pink blob detected')
+
 
     """ The callback function for the /camera/depth/points topic.
         This is called whenever we receive a message from this topic.
@@ -69,27 +88,34 @@ class Lab4Example:
         t.linear.x = 0 # x is moving back and forth
         t.angular.z = 0 # z is turning left and right
 
-        if self.state == 0:
-            if self.goal_x is None or self.goal_y is None:
-                # print("Goal Not Defined")
-                pass
-            else:
-                self.state = 1
-        if self.state == 1:
-            if self.goal_detected:
-                self.state = 2
-            # TODO handle else case
-        if self.state == 2:
-            if self.goal_x > BUFFER_ROTATE:
-                #turn left
-                t.angular.z = 0.5
-            elif self.goal_x < BUFFER_ROTATE:
-                #turn right
+        # if self.state == IDLE:
+        #     if self.goal_x is None or self.goal_y is None:
+        #         # print("Goal Not Defined")
+        #         pass
+        #     else:
+        #         self.state = SEARCH
+
+        if self.state == SEARCH:
+            print('searching, goal detected?:', self.goal_detected)
+            if not self.goal_detected:
+                print('goal not detected')
                 t.angular.z = -0.5
             else:
-                t.angular.z = 0
-                t.linear.x = 0.5
-            self.velocity_pub.publish(t)
+                self.state = MOVE
+        # elif self.state == MOVE:
+        #     print(self.goal_x, BUFFER_ROTATE)
+        #     if self.goal_x < BUFFER_ROTATE:
+        #         # turn left
+        #         t.angular.z = -0.3
+        #         print('rotating left')
+        #     else:
+        #         print('moving forward')
+        #         # move forward
+        #         t.angular.z = 0
+        #         t.linear.x = 0.1
+        #     print(self.goal_x)
+        #     # pass
+        self.velocity_pub.publish(t)
 
     def run(self):
         # print("Run..")
