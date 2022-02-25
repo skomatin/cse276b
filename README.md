@@ -1,5 +1,5 @@
-# Lab 3: Follower
+# Lab 4: Multi Modal Control
 
 Team Members: Arthi Haripriyan, Alex Chow, Saikiran Komatineni, Pratyusha Ghosh
 
-Package Name: peanut_butter
+Package Name: watermelon
